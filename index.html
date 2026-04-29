@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Bus Transit System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        /* Base Styles */
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: #f6ebdc;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Gradient Text for Headlines */
+        .gradient-text {
+            background: linear-gradient(to right, #8A2BE2, #00BFFF);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        
+        /* Styles for the new selection cards */
+        .portal-card {
+            background-color: #ffe09d;
+            border-radius: 1.5rem; /* 24px */
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+            transition: all 0.3s ease-in-out;
+        }
+        .portal-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            border-color: #cbd5e1;
+        }
+
+        /* Outline button style for Admin panel */
+        .btn-outline {
+            background-color: #00BFFF;
+            border: 1px solid #00BFFF;
+            color: #ffffff;
+        }
+        .btn-outline:hover {
+            background-color: #6cdaff;
+            color:#244955;
+        }
+        
+        /* Styles for the inner app interfaces (for compatibility) */
+        #app { width: 100%; max-width: 100%; } /* Allow full width for landing page */
+        .card { background-color: #ffe09d; border-radius: 1rem; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+        .btn { border-radius: 0.75rem; font-weight: 600; padding: 0.75rem 1.5rem; transition: all 0.3s ease; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background-color: #3b82f6; color: white; }
+        .btn-primary:hover { background-color: #155bf1; }
+        .btn-secondary { background-color: #64748b; color: white; }
+        .btn-secondary:hover { background-color: #394352; }
+        .input-field { border-radius: 0.5rem; border: 1px solid #d1d5db; padding: 0.75rem 1rem; width: 100%; transition: border-color 0.2s, box-shadow 0.2s; }
+        .input-field:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4); }
+        #map, #journey-map { height: 300px; width: 100%; z-index: 0; margin-top: 1rem; border-radius: 0.5rem; }
+
+        /* Custom Alert Modal Styles */
+        #custom-alert-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0,  0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+        #custom-alert-box { background: white; padding: 2rem; border-radius: 1rem; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.1); transform: scale(0.95); transition: transform 0.3s; }
+        #custom-alert-overlay.visible { opacity: 1; visibility: visible; }
+        #custom-alert-overlay.visible #custom-alert-box { transform: scale(1); }
+
+        /* Chat Assistant Styles */
+        .chat-message { padding: 0.75rem 1rem; border-radius: 1rem; margin-bottom: 0.5rem; max-width: 80%; line-height: 1.4; }
+        .user-message { background-color: #3b82f6; color: white; align-self: flex-end; border-bottom-right-radius: 0.25rem; margin-left: auto; }
+        .ai-message { background-color: #e5e7eb; color: #1f2937; align-self: flex-start; border-bottom-left-radius: 0.25rem; }
+        .ai-thinking { background-color: #f3f4f6; color: #6b7280; font-style: italic; align-self: flex-start; border-bottom-left-radius: 0.25rem; }
+        
+        /* Journey Planner Result Styles */
+        #journey-results { text-align: left; padding: 1rem; background-color: #f9fafb; border-radius: 0.5rem; margin-top: 1rem; max-height: 200px; overflow-y: auto; }
+        #journey-results div { padding-bottom: 0.5rem; border-bottom: 1px solid #e5e7eb; margin-bottom: 0.5rem; }
+
+        /* New Fancy Weather Widget Styles */
+        #weather-widget {
+            position: absolute;
+            top: -1rem; /* -16px */
+            right: 1rem; /* 16px */
+            padding: 0.75rem; /* 12px */
+            border-radius: 0.75rem; /* 12px */
+            background: linear-gradient(135deg, #c16aff 0%, #3a0064 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            width: auto;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(-10px);
+            animation: fadeInWidget 0.5s 0.2s forwards ease-out;
+            min-width: 150px;
+        }
+
+        /* New Date-Time Widget Styles */
+        #date-time-widget {
+            position: absolute;
+            top: -1rem;
+            left: 1rem;
+            padding: 0.75rem;
+            border-radius: 0.75rem;
+            background: linear-gradient(135deg, #089af5 0%, #154360 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            width: auto;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(-10px);
+            animation: fadeInWidget 0.5s 0.2s forwards ease-out;
+            min-width: 150px;
+        }
+
+        @keyframes fadeInWidget {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 lg:p-8">
+
+    <div id="app">
+        <div id="role-selection-page"></div> 
+        
+        <div id="driver-interface" class="hidden w-full max-w-md mx-auto"></div>
+        <div id="passenger-interface" class="hidden w-full max-w-md mx-auto"></div>
+    </div>
+
+    <div id="custom-alert-overlay">
+        <div id="custom-alert-box">
+            <p id="custom-alert-message" class="text-gray-700 mb-6"></p>
+            <button id="custom-alert-ok-btn" class="btn btn-primary">OK</button>
+        </div>
+    </div>
+
+    <script type="module">
+        // Firebase Imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, serverTimestamp, onSnapshot, deleteDoc, collection, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCCGuKuRQR3n6jtMxieDa057fZkJl8oWpQ",
+            authDomain: "smart-bus-app-v2.firebaseapp.com",
+            projectId: "smart-bus-app-v2",
+            storageBucket: "smart-bus-app-v2.appspot.com",
+            messagingSenderId: "683996342647",
+            appId: "1:683996342647:web:95135845f6ea0c51659972",
+            measurementId: "G-8V7KTRMBLC"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // --- DOM Elements ---
+        const roleSelectionPage = document.getElementById('role-selection-page');
+        const driverInterface = document.getElementById('driver-interface');
+        const passengerInterface = document.getElementById('passenger-interface');
+        
+        // --- Global Variables ---
+        let locationWatcherId = null;
+        let map = null;
+        let journeyMap = null;
+        let busMarkers = {};
+        let journeyPolyline = null;
+        let unsubscribeFromBuses = null;
+        let tripTimerInterval = null;
+        let clockInterval = null;
+        let tripCoordinates = [];
+        let totalDistance = 0;
+        let chatHistory = [];
+
+
+        // --- TEMPLATES ---
+        function loadTemplates() {
+            // New modern role selection page design
+            roleSelectionPage.innerHTML = `
+                <div class="w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                    <div class="text-center lg:text-left">
+                        <h1 class="text-5xl md:text-6xl font-extrabold text-gray-800">
+                            Modern Public Transport
+                            <span class="gradient-text font-light tracking-tight">Tracking</span>
+                        </h1>
+                        <p class="mt-4 text-lg text-gray-600 max-w-xl mx-auto lg:mx-0">
+                            Streamline your city's public transportation with real-time tracking, route management, and passenger information systems.
+                        </p>
+            
+                        <div class="mt-10 grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="portal-card p-6 flex flex-col">
+                                <div class="w-12 h-12 rounded-full flex items-center justify-center bg-gradient-to-br from-purple-500 to-indigo-500">
+                                    <i class="fas fa-users text-white text-xl"></i>
+                                </div>
+                                <h2 class="mt-4 text-xl font-bold text-gray-800">Passenger Portal</h2>
+                                <p class="text-gray-500 mt-1 flex-grow">Track buses in real-time, view schedules, and plan your journey.</p>
+                                <button onclick="showInterface('passenger')" class="mt-6 w-full btn text-white font-semibold bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-90">Continue as Passenger</button>
+                                <ul class="mt-4 space-y-2 text-sm text-gray-600">
+                                    <li class="flex items-center"><i class="fas fa-check-circle text-gray-400 mr-2"></i> Live bus locations</li>
+                                    <li class="flex items-center"><i class="fas fa-check-circle text-gray-400 mr-2"></i> Arrival predictions</li>
+                                </ul>
+                            </div>
+
+                            <div class="portal-card p-6 flex flex-col">
+                                <div class="w-12 h-12 rounded-full flex items-center justify-center bg-gradient-to-br from-cyan-400 to-blue-500">
+                                    <i class="fas fa-shield-alt text-white text-xl"></i>
+                                </div>
+                                <h2 class="mt-4 text-xl font-bold text-gray-800">Admin Dashboard</h2>
+                                <p class="text-gray-500 mt-1 flex-grow">Manage routes, monitor fleet, and analyze transportation data.</p>
+                                <button onclick="showInterface('driver')" class="mt-6 w-full btn btn-outline font-semibold">Access Admin Panel</button>
+                                <ul class="mt-4 space-y-2 text-sm text-gray-600">
+                                    <li class="flex items-center"><i class="fas fa-check-circle text-gray-400 mr-2"></i> Fleet management</li>
+                                    <li class="flex items-center"><i class="fas fa-check-circle text-gray-400 mr-2"></i> Analytics & reports</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+            
+                    <div class="relative w-full max-w-lg mx-auto">
+                        <img src="https://i.pinimg.com/736x/67/a4/27/67a4279f46d0c80dc6e815e38ca4dff8.jpg" alt="Buses in Kolkata" class="rounded-3xl shadow-2xl w-full h-auto object-cover">
+                        <div class="absolute -top-4 -right-4 bg-white p-3 rounded-2xl shadow-lg text-center">
+                            <p class="text-3xl font-bold text-gray-800">347</p>
+                            <p class="text-xs text-gray-500">Active Vehicles</p>
+                        </div>
+                        <div class="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white/80 backdrop-blur-sm p-2 px-4 rounded-full shadow-md flex items-center space-x-2">
+                            <span class="relative flex h-3 w-3"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span></span>
+                            <span class="text-sm font-medium text-gray-700">Live Tracking Active</span>
+                        </div>
+                    </div>
+                </div>`;
+
+            // Templates for the actual inner app interfaces
+            driverInterface.innerHTML = `<div id="driver-auth-choice" class="card p-8 text-center"></div><div id="driver-login-view" class="hidden card p-8"></div><div id="driver-register-view" class="hidden card p-8"></div><div id="driver-dashboard" class="hidden card p-6"></div>`;
+            passengerInterface.innerHTML = `<div id="passenger-auth-choice" class="card p-8 text-center"></div><div id="passenger-login-view" class="hidden card p-8"></div><div id="passenger-register-view" class="hidden card p-8"></div><div id="passenger-dashboard" class="hidden card p-6 relative"></div><div id="bus-search-view" class="hidden card p-6"></div><div id="journey-planner-view" class="hidden card p-6"></div><div id="ai-assistant-view" class="hidden card p-0 flex flex-col h-[70vh] max-h-[500px]"></div>`;
+        }
+        
+        // --- Custom Alert Function ---
+        const showAlert = (message) => {
+            const overlay = document.getElementById('custom-alert-overlay');
+            const messageP = document.getElementById('custom-alert-message');
+            const okBtn = document.getElementById('custom-alert-ok-btn');
+            messageP.textContent = message;
+            overlay.classList.add('visible');
+            okBtn.onclick = () => overlay.classList.remove('visible');
+        };
+
+        // --- Main UI Navigation Functions ---
+        window.showInterface = (role) => {
+            roleSelectionPage.classList.add('hidden');
+            driverInterface.classList.add('hidden');
+            passengerInterface.classList.add('hidden');
+            if (role === 'driver') {
+                driverInterface.classList.remove('hidden');
+                showAuthChoice('driver');
+            } else {
+                passengerInterface.classList.remove('hidden');
+                showAuthChoice('passenger');
+            }
+        }
+
+        window.showRoleSelection = () => {
+            roleSelectionPage.classList.remove('hidden');
+            driverInterface.classList.add('hidden');
+            passengerInterface.classList.add('hidden');
+            if (locationWatcherId) navigator.geolocation.clearWatch(locationWatcherId);
+            if (unsubscribeFromBuses) unsubscribeFromBuses();
+            if (clockInterval) clearInterval(clockInterval);
+        }
+
+        window.showAuthChoice = (role) => {
+            const driverViews = ['driver-login-view', 'driver-register-view', 'driver-dashboard'];
+            const passengerViews = ['passenger-login-view', 'passenger-register-view', 'passenger-dashboard', 'bus-search-view', 'journey-planner-view', 'ai-assistant-view'];
+            
+            if (role === 'driver') {
+                driverViews.forEach(view => document.getElementById(view)?.classList.add('hidden'));
+                const choiceView = document.getElementById('driver-auth-choice');
+                choiceView.innerHTML = `<button onclick="showRoleSelection()" class="text-black-500 hover:text-blue-500 mb-4 float-left"><i class="fas fa-arrow-left"></i> Back</button><h2 class="text-2xl font-bold text-gray-800 mb-6 clear-both">Admin Portal</h2><div class="space-y-4"><button onclick="showDriverLoginView()" class="btn btn-primary w-full">Login</button><button onclick="showDriverRegisterView()" class="btn w-full btn-secondary">Register as New Driver</button></div>`;
+                choiceView.classList.remove('hidden');
+            } else {
+                passengerViews.forEach(view => document.getElementById(view)?.classList.add('hidden'));
+                const choiceView = document.getElementById('passenger-auth-choice');
+                choiceView.innerHTML = `<button onclick="showRoleSelection()" class="text-black-500 hover:text-blue-500 mb-4 float-left"><i class="fas fa-arrow-left"></i> Back</button><h2 class="text-2xl font-bold text-gray-800 mb-6 clear-both">Passenger Portal</h2><div class="space-y-4"><button onclick="showPassengerLoginView()" class="btn btn-primary w-full">Login</button><button onclick="showPassengerRegisterView()" class="btn w-full btn-secondary">Register as New User</button></div>`;
+                choiceView.classList.remove('hidden');
+            }
+        }
+
+        // --- Driver Auth Views ---
+        window.showDriverLoginView = () => {
+            document.getElementById('driver-auth-choice').classList.add('hidden');
+            document.getElementById('driver-register-view').classList.add('hidden');
+            const view = document.getElementById('driver-login-view');
+            view.innerHTML = `<button onclick="showAuthChoice('driver')" class="text-black-500 hover:text-blue-500 mb-4"><i class="fas fa-arrow-left"></i> Back</button><h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Driver Login</h2><div class="space-y-4"><input type="text" id="loginEmployeeId" placeholder="Enter Employee ID" class="input-field"><input type="password" id="loginDriverPassword" placeholder="Enter Password" class="input-field"><button onclick="handleDriverLogin()" class="btn btn-primary w-full">Login</button></div>`;
+            view.classList.remove('hidden');
+        }
+        window.showDriverRegisterView = () => {
+            document.getElementById('driver-auth-choice').classList.add('hidden');
+            document.getElementById('driver-login-view').classList.add('hidden');
+            const view = document.getElementById('driver-register-view');
+            view.innerHTML = `<button onclick="showAuthChoice('driver')" class="text-black-500 hover:text-blue-500 mb-4"><i class="fas fa-arrow-left"></i> Back</button><h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Driver Registration</h2><div class="space-y-4"><input type="text" id="registerFullName" placeholder="Full Name" class="input-field"><input type="text" id="registerEmployeeId" placeholder="Choose an Employee ID" class="input-field"><input type="password" id="registerDriverPassword" placeholder="Create a Password" class="input-field"><button onclick="handleDriverRegister()" class="btn btn-primary w-full">Register</button></div>`;
+            view.classList.remove('hidden');
+        }
+
+        // --- Passenger Auth Views ---
+         window.showPassengerLoginView = () => {
+            document.getElementById('passenger-auth-choice').classList.add('hidden');
+            document.getElementById('passenger-register-view').classList.add('hidden');
+            const view = document.getElementById('passenger-login-view');
+            view.innerHTML = `<button onclick="showAuthChoice('passenger')" class="text-black-500 hover:text-blue-500 mb-4"><i class="fas fa-arrow-left"></i> Back</button><h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Passenger Login</h2><div class="space-y-4"><input type="text" id="loginPassengerIdentifier" placeholder="Enter Email or Phone Number" class="input-field"><button onclick="handlePassengerLogin()" class="btn btn-primary w-full">Continue</button></div>`;
+            view.classList.remove('hidden');
+        }
+        window.showPassengerRegisterView = () => {
+            document.getElementById('passenger-auth-choice').classList.add('hidden');
+            document.getElementById('passenger-login-view').classList.add('hidden');
+            const view = document.getElementById('passenger-register-view');
+            view.innerHTML = `<button onclick="showAuthChoice('passenger')" class="text-black-500 hover:text-blue-500 mb-4"><i class="fas fa-arrow-left"></i> Back</button><h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Passenger Registration</h2><div class="space-y-4"><input type="text" id="registerPassengerName" placeholder="Full Name" class="input-field"><input type="text" id="registerPassengerIdentifier" placeholder="Enter Email or Phone" class="input-field"><button onclick="handlePassengerRegister()" class="btn btn-primary w-full">Register</button></div>`;
+            view.classList.remove('hidden');
+        }
+
+        // --- Driver Logic ---
+        window.handleDriverLogin = async () => {
+            const employeeId = document.getElementById('loginEmployeeId').value.trim();
+            const password = document.getElementById('loginDriverPassword').value;
+            if (!employeeId || !password) return showAlert("Please enter both ID and Password.");
+            try {
+                const driverDocRef = doc(db, "drivers", employeeId);
+                const driverDoc = await getDoc(driverDocRef);
+                if (driverDoc.exists() && driverDoc.data().password === password) {
+                    document.getElementById('driver-login-view').classList.add('hidden');
+                    document.getElementById('driver-dashboard').classList.remove('hidden');
+                    loadDriverDashboard();
+                } else {
+                    showAlert("Invalid Employee ID or Password.");
+                }
+            } catch(e) { console.error("Login Error:", e); showAlert("An error occurred during login."); }
+        }
+
+        window.handleDriverRegister = async () => {
+            const name = document.getElementById('registerFullName').value.trim();
+            const employeeId = document.getElementById('registerEmployeeId').value.trim();
+            const password = document.getElementById('registerDriverPassword').value;
+            if (!name || !employeeId || !password) return showAlert("Please fill all fields.");
+            try {
+                const driverDocRef = doc(db, "drivers", employeeId);
+                const driverDoc = await getDoc(driverDocRef);
+                if (driverDoc.exists()) { return showAlert("This Employee ID is already registered."); }
+                await setDoc(driverDocRef, { name, password, createdAt: serverTimestamp() });
+                showAlert("Registration successful! You can now log in.");
+                showDriverLoginView();
+            } catch(e) { console.error("Registration Error:", e); showAlert("An error occurred during registration."); }
+        }
+        
+        const loadDriverDashboard = async () => {
+             document.getElementById('driver-dashboard').innerHTML = `<div id="pre-trip-view"><h2 class="text-2xl font-bold text-gray-800 mb-4">Start Trip</h2><div class="space-y-4"><select id="busRoute" class="input-field"><option disabled selected>Loading Routes...</option></select><input type="text" id="busReg" placeholder="Bus Registration Number" class="input-field"><button onclick="enableLocation()" class="btn btn-secondary w-full flex items-center justify-center"><i class="fas fa-map-marker-alt mr-2"></i>Enable GPS</button><button onclick="startTrip()" class="btn btn-primary w-full">Start Trip</button></div></div><div id="live-trip-view" class="hidden text-center"><h2 class="text-2xl font-bold text-green-600 mb-4">Trip in Progress...</h2><div class="grid grid-cols-2 gap-4 text-gray-700"><div class="bg-gray-100 p-4 rounded-lg"><p class="font-bold text-xl"><i class="fas fa-tachometer-alt mr-1"></i><span id="live-speed">0</span> km/h</p><p class="text-sm">Live Speed</p></div><div class="bg-gray-100 p-4 rounded-lg"><p class="font-bold text-xl"><i class="fas fa-signal mr-1"></i><span id="network-status">Checking...</span></p><p class="text-sm">Network</p></div><div class="bg-gray-100 p-4 rounded-lg col-span-2"><p class="font-bold text-xl"><i class="fas fa-clock mr-1"></i><span id="trip-duration">00:00:00</span></p><p class="text-sm">Trip Duration</p></div></div><button onclick="endTrip()" class="btn w-full mt-6 bg-red-500 hover:bg-red-700 text-white">End Trip</button></div><div id="post-trip-view" class="hidden text-center"><h2 class="text-2xl font-bold text-blue-600 mb-4">Trip Summary</h2><div class="space-y-3 text-left bg-gray-100 p-4 rounded-lg"><p><strong>Total Time:</strong> <span id="total-time">00:00:00</span></p><p><strong>Total Distance:</strong> <span id="total-distance">0.00</span> km</p></div><button onclick="resetDriverDashboard()" class="btn w-full mt-6 btn-secondary">Start New Trip</button></div>`;
+            await populateBusRoutes();
+        }
+
+        window.enableLocation = () => {
+            const btn = document.querySelector('button[onclick="enableLocation()"]');
+            if (navigator.geolocation) {
+                const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
+                locationWatcherId = navigator.geolocation.watchPosition(updateDriverPosition, showError, options);
+                btn.innerHTML = `<i class="fas fa-check-circle mr-2"></i>GPS Enabled`;
+                btn.classList.remove('btn-secondary');
+                btn.classList.add('bg-green-500', 'text-white', 'cursor-not-allowed');
+                btn.disabled = true;
+            } else showAlert("Geolocation is not supported by this browser.");
+        }
+
+        const updateDriverPosition = async (position) => {
+            const busReg = document.getElementById('busReg').value.trim().toUpperCase();
+            if (!busReg) return;
+            const speedKmh = position.coords.speed ? (position.coords.speed * 3.6).toFixed(1) : '0.0';
+            document.getElementById('live-speed').innerText = speedKmh;
+            const { latitude, longitude } = position.coords;
+            if (tripCoordinates.length > 0) {
+                const lastCoord = tripCoordinates[tripCoordinates.length - 1];
+                totalDistance += getDistance(lastCoord[0], lastCoord[1], latitude, longitude);
+            }
+            tripCoordinates.push([latitude, longitude]);
+            const driverData = { latitude, longitude, speed: parseFloat(speedKmh), lastUpdate: serverTimestamp() };
+            try { await setDoc(doc(db, "live_buses", busReg), driverData); } 
+            catch (e) { console.error("Error writing to Firebase: ", e); }
+        }
+        
+        const showError = (error) => showAlert(`Geolocation Error: ${error.message}`);
+
+        window.startTrip = () => {
+            if (!document.getElementById('busReg').value.trim()) return showAlert('Please enter Bus Registration Number!');
+            if (!locationWatcherId) return showAlert('Please enable GPS first!');
+            totalDistance = 0;
+            tripCoordinates = [];
+            let seconds = 0;
+            tripTimerInterval = setInterval(() => {
+                seconds++;
+                const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+                const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+                const s = (seconds % 60).toString().padStart(2, '0');
+                document.getElementById('trip-duration').innerText = `${h}:${m}:${s}`;
+            }, 1000);
+            document.getElementById('pre-trip-view').classList.add('hidden');
+            document.getElementById('live-trip-view').classList.remove('hidden');
+        }
+        
+        window.endTrip = async () => {
+            if (locationWatcherId) navigator.geolocation.clearWatch(locationWatcherId);
+            if (tripTimerInterval) clearInterval(tripTimerInterval);
+            document.getElementById('total-time').innerText = document.getElementById('trip-duration').innerText;
+            document.getElementById('total-distance').innerText = totalDistance.toFixed(2);
+            const busReg = document.getElementById('busReg').value.trim().toUpperCase();
+            if (busReg) { try { await deleteDoc(doc(db, "live_buses", busReg)); } catch(e) { console.error("Error deleting bus doc: ", e); } }
+            document.getElementById('live-trip-view').classList.add('hidden');
+            document.getElementById('post-trip-view').classList.remove('hidden');
+        }
+        
+        window.resetDriverDashboard = () => {
+            document.getElementById('post-trip-view').classList.add('hidden');
+            document.getElementById('pre-trip-view').classList.remove('hidden');
+            document.getElementById('busReg').value = '';
+            document.getElementById('busRoute').selectedIndex = 0;
+            document.getElementById('trip-duration').innerText = '00:00:00';
+            document.getElementById('total-distance').innerText = '0.00';
+            const gpsButton = document.querySelector('button[onclick="enableLocation()"]');
+            gpsButton.innerHTML = `<i class="fas fa-map-marker-alt mr-2"></i>Enable GPS`;
+            gpsButton.classList.remove('bg-green-500', 'text-white', 'cursor-not-allowed');
+            gpsButton.classList.add('btn-secondary');
+            gpsButton.disabled = false;
+        }
+
+        // --- Weather Function ---
+        async function fetchWeather() {
+            const weatherWidget = document.getElementById('weather-widget');
+            if (!weatherWidget) return;
+            
+            const city = 'New Town,IN';
+            const apiKey = '0cb05a1ba15549cb96c195659251509'; 
+            const url = `https://api.weatherapi.com/v1/current.json?key=${apiKey}&q=${city}`;
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    if(response.status === 401 || response.status === 403) {
+                         throw new Error('Invalid API Key.');
+                    }
+                    throw new Error('Weather data not available.');
+                }
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error.message);
+                }
+
+                const iconUrl = `https:${data.current.condition.icon}`;
+                const temp = data.current.temp_c.toFixed(1);
+                const description = data.current.condition.text;
+
+                weatherWidget.innerHTML = `
+                    <div class="flex items-center space-x-2">
+                        <img src="${iconUrl}" alt="${description}" class="w-10 h-10 -ml-1">
+                        <div>
+                            <p class="font-bold text-lg leading-tight">${temp}°C</p>
+                            <p class="text-xs opacity-80">${description}</p>
+                        </div>
+                    </div>
+                    <div class="text-xs opacity-80 mt-1 text-left pl-1">
+                        <i class="fas fa-location-arrow w-3"></i> ${data.location.name}
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error fetching weather:', error);
+                let errorMessage = `Could not load weather. <br><small class="font-semibold">${error.message}</small>`;
+                 if (error.message.includes('Invalid API Key')) {
+                    errorMessage += '<br><small class="text-gray-200 opacity-70">Note: New keys can take a few minutes to activate.</small>';
+                }
+                weatherWidget.innerHTML = `<div class="text-xs">${errorMessage}</div>`;
+            }
+        }
+
+        // --- Date & Time Function ---
+        function startClock() {
+            if(clockInterval) clearInterval(clockInterval);
+            updateDateTime();
+            clockInterval = setInterval(updateDateTime, 1000);
+        }
+
+        function updateDateTime() {
+            const dateTimeWidget = document.getElementById('date-time-widget');
+            if (!dateTimeWidget) return;
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true, timeZone: 'Asia/Kolkata' });
+            const dateString = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata'});
+            dateTimeWidget.innerHTML = `
+                <div class="font-bold text-lg">${timeString}</div>
+                <div class="text-xs opacity-80">${dateString}</div>
+            `;
+        }
+
+        // --- Passenger Logic ---
+        const loadPassengerDashboard = () => {
+            document.getElementById('passenger-dashboard').innerHTML = `
+                <div id="date-time-widget" class="text-xs text-white/80">Loading Time...</div>
+                <div id="weather-widget" class="text-xs text-white/80">Loading Weather...</div>
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 mt-12">How can we help?</h2>
+                <div class="space-y-4">
+                    <button onclick="showBusMapView()" class="btn btn-primary w-full text-left"><i class="fas fa-map-marked-alt w-6"></i> Live Bus Map</button>
+                    <button onclick="showJourneyPlannerView()" class="btn btn-primary w-full text-left"><i class="fas fa-route w-6"></i> Plan Your Journey</button>
+                    <button onclick="showAiAssistantView()" class="btn btn-primary w-full text-left"><i class="fas fa-robot w-6"></i> AI Help Assistant</button>
+                </div>
+                <button onclick="showAuthChoice('passenger')" class="btn btn-secondary w-full mt-6">Logout</button>
+            `;
+            fetchWeather();
+            startClock();
+        }
+        
+        window.handlePassengerLogin = async () => {
+            const identifier = document.getElementById('loginPassengerIdentifier').value.trim();
+            if (!identifier) return showAlert('Please enter your identifier.');
+            const passengerDocRef = doc(db, "passengers", identifier);
+            const passengerDoc = await getDoc(passengerDocRef);
+            if (passengerDoc.exists()) {
+                document.getElementById('passenger-login-view').classList.add('hidden');
+                document.getElementById('passenger-dashboard').classList.remove('hidden');
+                loadPassengerDashboard();
+            } else { showAlert("User not found. Please register first."); }
+        }
+        
+        window.handlePassengerRegister = async () => {
+            const name = document.getElementById('registerPassengerName').value.trim();
+            const identifier = document.getElementById('registerPassengerIdentifier').value.trim();
+            if (!name || !identifier) return showAlert("Please fill all fields.");
+            const passengerDocRef = doc(db, "passengers", identifier);
+            const passengerDoc = await getDoc(passengerDocRef);
+            if (passengerDoc.exists()) { return showAlert("This Email/Phone is already registered."); }
+            try {
+                await setDoc(passengerDocRef, { name, identifier, createdAt: serverTimestamp() });
+                showAlert("Registration successful! You can now log in.");
+                showPassengerLoginView();
+            } catch (e) { console.error("Passenger Registration Error:", e); showAlert("An error occurred during registration."); }
+        }
+        
+        window.showPassengerDashboard = () => {
+            ['passenger-auth-choice', 'passenger-login-view', 'passenger-register-view', 'bus-search-view', 'journey-planner-view', 'ai-assistant-view'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            document.getElementById('passenger-dashboard').classList.remove('hidden');
+            loadPassengerDashboard();
+            if (unsubscribeFromBuses) unsubscribeFromBuses();
+            if (map) {
+                Object.values(busMarkers).forEach(marker => map.removeLayer(marker));
+                busMarkers = {};
+            }
+        }
+
+        window.showBusMapView = () => {
+            document.getElementById('passenger-dashboard').classList.add('hidden');
+            const view = document.getElementById('bus-search-view');
+            view.innerHTML = `<button onclick="showPassengerDashboard()" class="text-black-500 hover:text-blue-500 mb-4"><i class="fas fa-arrow-left"></i> Go Back</button>
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">Live Bus Map</h2>
+                <div class="flex space-x-2">
+                    <input type="text" id="bus-search-input" placeholder="Enter Bus Reg. to find specific bus" class="input-field">
+                    <button onclick="findSpecificBus()" class="btn btn-primary">Find</button>
+                </div>
+                <div id="map-controls" class="mt-2 h-8"></div>
+                <div id="map" class="mt-2 rounded-lg" style="height: 400px;"></div>`;
+            view.classList.remove('hidden');
+            if (!map) {
+                map = L.map('map').setView([22.5726, 88.3639], 12);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
+            }
+            trackAllBuses();
+        }
+
+        window.trackAllBuses = (isReset = false) => {
+             if (isReset) {
+                document.getElementById('map-controls').innerHTML = '';
+                document.getElementById('bus-search-input').value = '';
+            }
+            if (unsubscribeFromBuses) unsubscribeFromBuses();
+
+            Object.values(busMarkers).forEach(marker => map.removeLayer(marker));
+            busMarkers = {};
+
+            const busesCollectionRef = collection(db, "live_buses");
+            unsubscribeFromBuses = onSnapshot(busesCollectionRef, (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    const busData = change.doc.data();
+                    const busId = change.doc.id;
+                    const latLng = [busData.latitude, busData.longitude];
+
+                    if (change.type === "added") {
+                        const busIcon = L.icon({ iconUrl: 'https://img.icons8.com/plasticine/100/bus.png', iconSize: [50, 50] });
+                        const marker = L.marker(latLng, { icon: busIcon }).addTo(map);
+                        marker.bindPopup(`<b>Bus:</b> ${busId}<br><b>Speed:</b> ${busData.speed || 0} km/h`);
+                        busMarkers[busId] = marker;
+                    }
+                    if (change.type === "modified") {
+                        const marker = busMarkers[busId];
+                        if (marker) {
+                            marker.setLatLng(latLng);
+                            marker.setPopupContent(`<b>Bus:</b> ${busId}<br><b>Speed:</b> ${busData.speed || 0} km/h`);
+                        }
+                    }
+                    if (change.type === "removed") {
+                        const marker = busMarkers[busId];
+                        if (marker) {
+                            map.removeLayer(marker);
+                            delete busMarkers[busId];
+                        }
+                    }
+                });
+            });
+        }
+        
+        window.findSpecificBus = () => {
+            if (unsubscribeFromBuses) unsubscribeFromBuses();
+            
+            Object.values(busMarkers).forEach(marker => map.removeLayer(marker));
+            busMarkers = {};
+
+            const busReg = document.getElementById('bus-search-input').value.trim().toUpperCase();
+            if (!busReg) {
+                showAlert('Please enter a bus registration number to find.');
+                trackAllBuses();
+                return;
+            }
+
+            const busDocRef = doc(db, "live_buses", busReg);
+            unsubscribeFromBuses = onSnapshot(busDocRef, (doc) => {
+                const busId = doc.id;
+                if (doc.exists()) {
+                    const busData = doc.data();
+                    const latLng = [busData.latitude, busData.longitude];
+                    
+                    if (!busMarkers[busId]) {
+                        const busIcon = L.icon({ iconUrl: 'https://img.icons8.com/plasticine/100/bus.png', iconSize: [50, 50] });
+                        const marker = L.marker(latLng, { icon: busIcon }).addTo(map);
+                        busMarkers[busId] = marker;
+                    }
+                    
+                    const marker = busMarkers[busId];
+                    marker.setLatLng(latLng);
+                    marker.bindPopup(`<b>Bus:</b> ${busId}<br><b>Speed:</b> ${busData.speed || 0} km/h`).openPopup();
+                    map.setView(latLng, 15);
+
+                } else {
+                    showAlert("Bus not found or its trip has ended.");
+                     if (busMarkers[busId]) {
+                        map.removeLayer(busMarkers[busId]);
+                        delete busMarkers[busId];
+                    }
+                }
+            });
+
+            document.getElementById('map-controls').innerHTML = `<button onclick="trackAllBuses(true)" class="btn btn-secondary text-sm py-1 px-3">Show All Buses</button>`;
+        }
+
+        window.showJourneyPlannerView = () => {
+            document.getElementById('passenger-dashboard').classList.add('hidden');
+            const view = document.getElementById('journey-planner-view');
+            view.innerHTML = `<button onclick="showPassengerDashboard()" class="text-black-500 hover:text-blue-500 mb-4"><i class="fas fa-arrow-left"></i> Go Back</button><h2 class="text-2xl font-bold text-gray-800 mb-4">Plan Your Journey</h2><div class="space-y-4"><input type="text" id="start-point" placeholder="Enter Start Point" class="input-field"><input type="text" id="end-point" placeholder="Enter Destination" class="input-field"><button id="plan-journey-btn" onclick="planJourney()" class="btn btn-primary w-full">Find Route</button></div><div id="journey-map" class="hidden"></div><div id="journey-results" class="mt-4"></div>`;
+            view.classList.remove('hidden');
+        }
+
+        window.planJourney = async () => {
+            const btn = document.getElementById('plan-journey-btn');
+            if (btn.disabled) return;
+            const start = document.getElementById('start-point').value.trim();
+            const end = document.getElementById('end-point').value.trim();
+            if (!start || !end) return showAlert("Please enter both start and end points.");
+            const resultsDiv = document.getElementById('journey-results');
+            resultsDiv.innerHTML = `<p class="text-gray-500">Finding the best route for you...</p>`;
+            btn.disabled = true;
+            const ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImE3MzRhZGI5NDY2MDQyZWI4ZjVkMmFiNzZhNmY0MjRjIiwiaCI6Im11cm11cjY0In0="; 
+            try {
+                const startCoords = await getCoordinates(start, ORS_API_KEY);
+                const endCoords = await getCoordinates(end, ORS_API_KEY);
+                const API_URL = 'https://api.openrouteservice.org/v2/directions/driving-car/geojson';
+                const payload = { coordinates: [startCoords, endCoords] };
+                const response = await fetch(API_URL, { method: 'POST', headers: { 'Authorization': ORS_API_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.error.message || `API Error (${response.status})`); }
+                const data = await response.json();
+                if (!data.features || data.features.length === 0) throw new Error("No routes found.");
+                const route = data.features[0];
+                const leg = route.properties.segments[0];
+                let instructionsHTML = `<div><strong>Route Summary:</strong><p>${(leg.duration/60).toFixed(0)} mins, ${(leg.distance/1000).toFixed(2)} km</p></div>`;
+                leg.steps.forEach(step => { instructionsHTML += `<div><i class="fas fa-route text-blue-500"></i> <strong>${step.instruction}</strong><p>Distance: ${step.distance}m</p></div>`; });
+                resultsDiv.innerHTML = instructionsHTML;
+                const journeyMapContainer = document.getElementById('journey-map');
+                journeyMapContainer.classList.remove('hidden');
+                if(!journeyMap) { journeyMap = L.map('journey-map'); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(journeyMap); }
+                if(journeyPolyline) journeyMap.removeLayer(journeyPolyline);
+                const latLngs = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                journeyPolyline = L.polyline(latLngs, {color: 'blue'}).addTo(journeyMap);
+                journeyMap.fitBounds(journeyPolyline.getBounds());
+            } catch (error) { console.error("Error with Journey Planner:", error); resultsDiv.innerHTML = `<p class="text-red-500">Sorry, an error occurred: ${error.message}</p>`; } 
+            finally { btn.disabled = false; }
+        }
+        
+        async function getCoordinates(place, apiKey) {
+            const kolkataLon = 88.3639; const kolkataLat = 22.5726;
+            const response = await fetch(`https://api.openrouteservice.org/geocode/search?api_key=${apiKey}&text=${encodeURIComponent(place)}&focus.point.lon=${kolkataLon}&focus.point.lat=${kolkataLat}`);
+            if (!response.ok) throw new Error("Failed to find location coordinates.");
+            const data = await response.json();
+            if (!data.features || data.features.length === 0) throw new Error(`Could not find coordinates for "${place}"`);
+            return data.features[0].geometry.coordinates;
+        }
+        
+        window.showAiAssistantView = () => {
+            document.getElementById('passenger-dashboard').classList.add('hidden');
+            const view = document.getElementById('ai-assistant-view');
+            view.innerHTML = `<div class="p-4 border-b flex items-center"><button onclick="showPassengerDashboard()" class="text-gray-500 hover:text-blue-500 mr-4"><i class="fas fa-arrow-left"></i></button><h2 class="text-xl font-bold text-gray-800">AI Help Assistant</h2></div><div id="chat-box" class="flex-1 p-4 overflow-y-auto bg-gray-50 flex flex-col"></div><div class="p-4 border-t bg-white"><div class="flex space-x-2"><input type="text" id="chat-input" placeholder="Ask about routes..." class="input-field" onkeydown="if(event.key==='Enter') sendChatMessage()"><button id="send-btn" onclick="sendChatMessage()" class="btn btn-primary"><i class="fas fa-paper-plane"></i></button></div></div>`;
+            view.classList.remove('hidden');
+            const chatBox = document.getElementById('chat-box');
+            chatHistory = []; // Reset chat history
+            if (chatBox.children.length === 0) {
+                appendChatMessage("Hello! How can I help you find your way around Kolkata?", 'ai');
+            }
+        }
+
+        window.sendChatMessage = async () => {
+            const btn = document.getElementById('send-btn');
+            if(btn.disabled) return;
+            const input = document.getElementById('chat-input');
+            const userMessage = input.value.trim();
+            if (!userMessage) return;
+            appendChatMessage(userMessage, 'user');
+            input.value = '';
+            btn.disabled = true;
+            appendChatMessage("Thinking...", 'ai-thinking');
+
+            const GEMINI_API_KEY = "AIzaSyBBoxT-4MFf81eoSC9PgACzdyijSyz-gSg";
+            const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+            
+            // Add user message to history for context
+            chatHistory.push({ role: "user", parts: [{ text: userMessage }] });
+
+            // Construct payload with history
+            const payload = { 
+                contents: chatHistory,
+                systemInstruction: {
+                   role: "system",
+                   parts: [{ text: "You are a helpful bus transit assistant for Kolkata, India. Keep your answers concise and focused on public transport."}]
+                }
+            };
+
+            try {
+                const response = await fetch(API_URL, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify(payload) 
+                });
+                
+                if (!response.ok) { 
+                    const errorData = await response.json().catch(() => ({ error: { message: "Unknown error." } })); 
+                    throw new Error(`API Error (${response.status}): ${errorData.error.message}`); 
+                }
+                
+                const data = await response.json();
+                
+                if (!data.candidates || data.candidates.length === 0) {
+                    throw new Error("No response from AI. The query may have been blocked for safety reasons.");
+                }
+
+                const aiResponse = data.candidates[0].content.parts[0].text;
+                
+                // Add AI response to history
+                chatHistory.push({ role: "model", parts: [{ text: aiResponse }] });
+
+                document.querySelector('.ai-thinking')?.remove();
+                appendChatMessage(aiResponse, 'ai');
+
+            } catch (error) {
+                console.error("Error with Gemini API:", error);
+                document.querySelector('.ai-thinking')?.remove();
+                appendChatMessage(`Sorry, an error occurred: ${error.message}`, 'ai');
+                // Optional: remove the last user message from history on error
+                chatHistory.pop();
+            } finally { 
+                btn.disabled = false; 
+            }
+        }
+
+
+        const appendChatMessage = (message, sender) => {
+            const chatBox = document.getElementById('chat-box');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `chat-message ${sender === 'user' ? 'user-message' : 'ai-message'} ${sender === 'ai-thinking' ? 'ai-thinking' : ''}`;
+            msgDiv.textContent = message;
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        // --- HELPER FUNCTIONS ---
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; const dLat = (lat2 - lat1) * Math.PI / 180; const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        }
+
+        async function populateBusRoutes() {
+            const routeSelect = document.getElementById('busRoute');
+            try {
+                const routesCollection = collection(db, 'bus_routes');
+                let snapshot = await getDocs(routesCollection);
+                if (snapshot.empty) {
+                    const defaultRoutes = {
+                        'S12': { name: 'S12', from: 'Howrah', to: 'New Town' },
+                        'AC1': { name: 'AC1', from: 'Jadavpur', to: 'Airport' },
+                        '45A': { name: '45A', from: 'Garia', to: 'Esplanade' }
+                    };
+                    for (const [id, data] of Object.entries(defaultRoutes)) { await setDoc(doc(db, 'bus_routes', id), data); }
+                    snapshot = await getDocs(routesCollection);
+                }
+                routeSelect.innerHTML = '<option disabled selected>Select Bus Route</option>';
+                snapshot.forEach(doc => {
+                    const route = doc.data(); const option = document.createElement('option');
+                    option.value = doc.id; option.textContent = `${route.name} (${route.from} to ${route.to})`;
+                    routeSelect.appendChild(option);
+                });
+            } catch (e) { console.error("Error populating bus routes:", e); routeSelect.innerHTML = '<option disabled selected>Error loading routes</option>'; }
+        }
+
+        function updateNetworkStatus() {
+            const statusSpan = document.getElementById('network-status');
+            if (statusSpan) statusSpan.textContent = navigator.onLine ? 'Good' : 'Offline';
+        }
+        window.addEventListener('online', updateNetworkStatus);
+        window.addEventListener('offline', updateNetworkStatus);
+        
+        // --- Initialize the app ---
+        loadTemplates();
+        updateNetworkStatus();
+
+    </script>
+</body>
+</html>
+
